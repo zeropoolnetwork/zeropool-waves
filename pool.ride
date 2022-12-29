@@ -66,38 +66,43 @@ func withdraw(amount: Int) = {
     ]
 }
 
-# nullifier     32 bytes
-# outCommit     32 bytes
-# assetId       32 bytes
-# delta         32 bytes
-# nativeAmount  8 bytes signed # TODO: parse delta instead of including components in the transaction
-# nativeEnergy  8 bytes signed
-# txIndex       32 bytes
-# txProof       32 * 8 bytes
-# treeProof     32 * 8 bytes
-# rootAfter     32 bytes
-# txType        2 bytes
-# memo          dynamic bytes
+# nullifier         32 bytes
+# outCommit         32 bytes
+# assetId           32 bytes
+# delta             32 bytes
+#     nativeAmount   8 bytes
+#     nativeEnergy  14 bytes
+#     txIndex        6 bytes
+#     poolId         3 bytes
+# txProof          256 bytes
+# treeProof        256 bytes
+# rootAfter         32 bytes
+# txType             2 bytes
+# memo               dynamic bytes
+# depositPk          optional 32 bytes
+# depositSignature   optional 64 bytes
 @Callable(i)
 func transact(tx: ByteVector) = {
     let nullifier = takeExt(tx, 0, 32)
     let outCommit = takeExt(tx, 32, 64)
     let assetId = takeExt(tx, 64, 96)
     let delta = takeExt(tx, 96, 128)
-    let nativeAmount = toInt(tx, 128)
-    let nativeEnergy = toInt(tx, 136)
-    let txIndex = toInt(toBigInt(tx, 144, 32)) # FIXME: Make txIndex smaller?
-    let txProof = takeExt(tx, 176, 304)
-    let treeProof = takeExt(tx, 304, 560)
-    let rootAfter = takeExt(tx, 560, 592)
-    let txType = toInt(takeExt(tx, 592, 594))
+    let nativeAmount = toInt(takeExt(delta, 0, 8))
+    let nativeEnergy = toInt(takeExt(delta, 8, 22))
+    let txIndex = toInt(takeExt(delta, 22, 28))
+    let _poolId = takeExt(delta, 28, 31)
+    let txProof = takeExt(tx, 128, 384)
+    let treeProof = takeExt(tx, 384, 640)
+    let rootAfter = takeExt(tx, 640, 672)
+    let txType = toInt(takeExt(tx, 672, 674))
 
     let (memo, depositPk, depositSignature) = if (txType == 0) then
-        let depositPk = dropRight(takeRight(tx, 64), 32)
-        let depositSignature = takeRight(tx, 32)
-        (takeExt(tx, 594, size(tx) - 32), depositPk, depositSignature)
+        let depositDataSize = 32 + 64
+        let depositPk = dropRight(takeRight(tx, depositDataSize), 64)
+        let depositSignature = takeRight(tx, 64)
+        (takeExt(tx, 674, size(tx) - depositDataSize), depositPk, depositSignature)
     else
-        (takeExt(tx, 594, size(tx)), unit, unit)
+        (takeExt(tx, 674, size(tx)), unit, unit)
 
     let fee = toInt(takeExt(memo, 0, 8))
 
@@ -130,7 +135,7 @@ func transact(tx: ByteVector) = {
             else if (!sigVerify_8Kb(nullifier + depositPkValue, value(depositSignature), depositPkValue)) then
                 throw("Invalid deposit signature")
             else
-                spendDeposit(depositAddress, nativeAmount)
+                spendDeposit(depositAddress, nativeAmount * denominator)
         }
         # transfer
         case 1 => {
