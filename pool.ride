@@ -1,0 +1,182 @@
+{-# STDLIB_VERSION 6 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let operatorPk = base58'GyVshojyNKdnR3NVsHttiwRDYmcodrtCj7V9sFbNAuxF'
+let operatorAddress = addressFromPublicKey(operatorPk)
+let denominator = 100000000
+let transferVk = base64''
+let treeVk = base64''
+let initialRoot = toBytes(parseBigIntValue("11469701942666298368112882412133877458305516134926649826543144744382391691533"))
+
+func getRootKey(index: Int) = "R:" + toString(index)
+func getNullifierKey(nullifier: ByteVector) = "N:" + toBase58String(nullifier)
+func getDepositKey(address: ByteVector) = "D:" + toBase58String(address)
+
+func takeExt(v: ByteVector, from: Int, to: Int) = {
+    drop(take(v, to), from)
+}
+
+func spendDeposit(address: Address, amount: Int) = {
+    let currentKey = getDepositKey(address.bytes)
+    let currentAmount = match getInteger(currentKey) {
+        case a:Int => a
+        case _ => 0
+    }
+    let newAmount = currentAmount - amount
+    if (amount < 0) then
+        throw("Can't spend negative amount")
+    else if (newAmount < 0) then
+        throw("Not enough balance")
+    else [
+        IntegerEntry(currentKey, newAmount)
+    ]
+}
+
+@Callable(i)
+func deposit() = {
+   let pmt = value(i.payments[0])
+   if (isDefined(pmt.assetId)) then throw("Only WAVES is allowed at the moment")
+   else {
+        let currentKey = getDepositKey(i.caller.bytes)
+        let currentAmount = match getInteger(this, currentKey) {
+            case a:Int => a
+            case _ => 0
+        }
+        let newAmount = currentAmount + pmt.amount
+        [IntegerEntry(currentKey, newAmount)]
+   }
+}
+
+@Callable(i)
+func withdraw(amount: Int) = {
+    let currentKey = getDepositKey(i.caller.bytes)
+    let currentAmount = match getInteger(this, currentKey) {
+        case a:Int => a
+        case _ => 0
+    }
+    let newAmount = currentAmount - amount
+    if (amount < 0) then
+        throw("Can't withdraw negative amount")
+    else if (newAmount < 0) then
+        throw("Not enough balance")
+    else [
+        IntegerEntry(currentKey, newAmount),
+        ScriptTransfer(i.caller, amount, unit)
+    ]
+}
+
+# nullifier     32 bytes
+# outCommit     32 bytes
+# assetId       32 bytes
+# delta         32 bytes
+# nativeAmount  8 bytes signed # TODO: parse delta instead of including components in the transaction
+# nativeEnergy  8 bytes signed
+# txIndex       32 bytes
+# txProof       32 * 8 bytes
+# treeProof     32 * 8 bytes
+# rootAfter     32 bytes
+# txType        2 bytes
+# memo          dynamic bytes
+@Callable(i)
+func transact(tx: ByteVector) = {
+    let nullifier = takeExt(tx, 0, 32)
+    let outCommit = takeExt(tx, 32, 64)
+    let assetId = takeExt(tx, 64, 96)
+    let delta = takeExt(tx, 96, 128)
+    let nativeAmount = toInt(tx, 128)
+    let nativeEnergy = toInt(tx, 136)
+    let txIndex = toInt(toBigInt(tx, 144, 32)) # FIXME: Make txIndex smaller?
+    let txProof = takeExt(tx, 176, 304)
+    let treeProof = takeExt(tx, 304, 560)
+    let rootAfter = takeExt(tx, 560, 592)
+    let txType = toInt(takeExt(tx, 592, 594))
+
+    let (memo, depositPk, depositSignature) = if (txType == 0) then
+        let depositPk = dropRight(takeRight(tx, 64), 32)
+        let depositSignature = takeRight(tx, 32)
+        (takeExt(tx, 594, size(tx) - 32), depositPk, depositSignature)
+    else
+        (takeExt(tx, 594, size(tx)), unit, unit)
+
+    let fee = toInt(takeExt(memo, 0, 8))
+
+    let memoHash = keccak256(memo)
+    strict rootBefore = valueOrElse(getBinary(getRootKey(txIndex)), initialRoot)
+    let poolIndex = valueOrElse(getInteger("PoolIndex"), 0)
+    let poolRoot = valueOrElse(getBinary(getRootKey(poolIndex)), initialRoot)
+    let nullifierExists = match getBinary(getNullifierKey(nullifier)) {
+        case a:Unit => false
+        case _ => true
+    }
+
+    let transferInputs = memoHash + nullifier + outCommit + delta + memoHash
+    let treeInputs = poolRoot + rootAfter + outCommit
+
+    let dataRes = [
+        BinaryEntry(getRootKey(txIndex), rootAfter),
+        BinaryEntry(getNullifierKey(nullifier), keccak256(outCommit + delta)),
+        IntegerEntry("PoolIndex", poolIndex + 128)
+    ]
+
+    let res = match txType {
+        # deposit
+        case 0 => {
+            let depositPkValue = value(depositPk)
+            let depositAddress = addressFromPublicKey(depositPkValue)
+
+            if (nativeAmount < 0) then
+                throw("Can't deposit negative amount")
+            else if (!sigVerify_8Kb(nullifier + depositPkValue, value(depositSignature), depositPkValue)) then
+                throw("Invalid deposit signature")
+            else
+                spendDeposit(depositAddress, nativeAmount)
+        }
+        # transfer
+        case 1 => {
+            if (nativeAmount != 0) then
+                throw("Native amount must be zero for transfers")
+            else
+                []
+        }
+        # withdraw
+        case 2 => {
+            let withdrawAmount = toInt(takeExt(memo, 8, 16)) * denominator
+
+            if (withdrawAmount > 0) then
+                throw("Withdraw amount must be positive")
+            else {
+                [ScriptTransfer(i.caller, -withdrawAmount, unit)]
+            }
+        }
+        case _ => throw("Unknown tx type")
+    }
+
+    let feeRes = if (fee > 0) then {
+        let totalFee = fee * denominator
+        [ScriptTransfer(operatorAddress, fee, unit)]
+    }
+    else
+        []
+
+    if (txIndex > poolIndex) then
+        throw("Transaction index is too big")
+    else if (!bn256Groth16Verify_5inputs(transferVk, txProof, transferInputs)) then
+        throw("Tx proof is invalid")
+    else if (!bn256Groth16Verify_3inputs(treeVk, treeProof, treeInputs)) then
+        throw("Tree proof is invalid")
+    else if (nullifierExists) then
+        throw("Double spend")
+    else
+        res ++ dataRes ++ feeRes
+
+}
+
+@Verifier(tx)
+func verify() = {
+    match tx {
+        case d: SetScriptTransaction =>
+            sigVerify(tx.bodyBytes, tx.proofs[0], operatorPk)
+        case _ => false
+    }
+}
