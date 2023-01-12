@@ -12,6 +12,7 @@ let initialRoot = toBytes(parseBigIntValue("114697019426662983681128824121338774
 func getRootKey(index: Int) = "R:" + toString(index)
 func getNullifierKey(nullifier: ByteVector) = "N:" + toBase58String(nullifier)
 func getDepositKey(address: ByteVector) = "D:" + toBase58String(address)
+let poolIndexKey = "PoolIndex"
 
 func takeExt(v: ByteVector, from: Int, to: Int) = {
     drop(take(v, to), from)
@@ -66,7 +67,7 @@ func withdraw(amount: Int) = {
     ]
 }
 
-# nullifier         32 bytes
+# nullifier          32 bytes
 # outCommit         32 bytes
 # assetId           32 bytes
 # delta             32 bytes
@@ -108,7 +109,7 @@ func transact(tx: ByteVector) = {
 
     let memoHash = keccak256(memo)
     strict rootBefore = valueOrElse(getBinary(getRootKey(txIndex)), initialRoot)
-    let poolIndex = valueOrElse(getInteger("PoolIndex"), 0)
+    let poolIndex = valueOrElse(getInteger(poolIndexKey), 0)
     let poolRoot = valueOrElse(getBinary(getRootKey(poolIndex)), initialRoot)
     let nullifierExists = match getBinary(getNullifierKey(nullifier)) {
         case a:Unit => false
@@ -121,7 +122,7 @@ func transact(tx: ByteVector) = {
     let dataRes = [
         BinaryEntry(getRootKey(txIndex), rootAfter),
         BinaryEntry(getNullifierKey(nullifier), keccak256(outCommit + delta)),
-        IntegerEntry("PoolIndex", poolIndex + 128)
+        IntegerEntry(poolIndexKey, poolIndex + 128)
     ]
 
     let res = match txType {
