@@ -2,17 +2,24 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
+# Replace the following constants with your own values. The only necessary change is the operatorPk. The rest can be left as is for testing purposes.
+# Operator (relayer) public key
 let operatorPk = base58'GyVshojyNKdnR3NVsHttiwRDYmcodrtCj7V9sFbNAuxF'
 let operatorAddress = addressFromPublicKey(operatorPk)
+# Denominator for storing amounts
 let denominator = 100000000
+# Transfer and tree verification keys: base64-encoded binary format taken from https://github.com/zeropoolnetwork/zeropool-test-params
 let transferVk = base64'SYrHhkeDrw+dFMD6Yr/Vrvr2pPyDHCWoMO8w9LxFaQABrVkxqK1PRfgZw0t9bDNsxFEJNHhErc9XHTkkU1OiEYYWiz2VdqW6jQewS86Z3lshxW6Fdf1MU0MDPt1NoikSf2YEIBvI+gscAfqmtvJxZbkVA/Lrr7r+HyVUoZGt1QB46Zv9umeZBwmTWiDHaLPPgOVOWQAVYLMCwpEzEzIdF2C8KzI/CsCeCv3raf56RXmhFAWuJCbMtO6My12PxFQDRv98IWP0FGhY/m6sQ/9r58GInq4bSVYWKlGucbXbayaYF35Fp3o6VaRXVWzJ6FesrH8dS+DxeadscnAN4IQEB4J5YcwZvAX/fjE5JEHNC4WrNfiUe+fe6FAQ4ttHlRgKS+PbN1butH1dDkfQkBKC5Om0WI3D45eaRbN6Taxt7ha5xCUwGVh0LQ+Wf/j9bY+un1Cwur9wx+HmB6PPGC2pEFLSQhkZjtvNJTs6e1c0i3FAOhFDSNqEjcqORSer2aUGdJMXhB6YEv/XcumUDyQbem+f0wX2qOgtwVFLtGOq7S65sHzNcHpdJP/htHnhqkQErwmjDG/JTs9oc1mu5jOsGAYAAAAovMt7vHGhKq+EA+6JlSFfVMj7aU/V67EpBI64f73xJKTpnqCOEMhaQMegFHTJ/W5Cp9iTd4i3AqnoTQj+L1UOXKmddpvHhg0WJHFbosaPhv8EY7+cAaHmn1JPO30BBRPqTsN53lfykgE2oF9vGPyU4u0Y3Oh8YG2p7I2Oz+NaKkzrJo2SamjhbLOofkEX14HbjdZLWD5T07/J4qfaYb8Eervvcr/H2IS0GJ7UFTdqJGwWa/1IZZF6RN8rj5y8xg2BoioqwyhpS3I7gROorvBg6hMSFh4eYXROfzISFgWiF5eouqLDFV3P8geZwxSRDnzOaDyCe3Y7EaxhPBjHbtYA/DLJnfWLC6H6AnAA+fLxTZHjtEL/7Mcc+8MYPzH1mAf9gA0UiXxfzFWLSiAzWDBF+Uzpxn2XO25DNREAiZeYIHqYaq6iaMlcNtk5iiSMm+aO6VPqh1tuPoIND/ry5aALN3TlgjnOoDOTGpJIlakKGfGnRHaM/Jd0vbiJ723UUAM='
 let treeVk = base64'qGBPhudr70q2hdpdMHxxPVdk+MJDazUwWbBTl+eJCx/zUEagbSAhrTUc40Jajsexh+ThMSv1ZlKhNgbjvc8GFwfScaiOtcM0fDjNcUeChr2NpgbQV+y4XTvC8sjwVXEareR6FvrGlyEdKcFx+vIagiT77lQ3MK/EfxwlNHsEdAy0sWThEjpDykFPiYWG6T5IJWIGtdhrcPdePYv1GX0wCakWmTMh9NWYby1erGRPnDxWxeFcOBN4DPhkSQKg/DMH1LkY/GlCqIdfdX5Mr+0CMQWnmr8oECA5QgeOJ1ZnSQmO18Jg9rclNx9mhqD3iux0b+o293HkYg4d75ZOBeUqLdx63/eIe/VEuwIkGFBs4sU9WHEsdqpx8QKpByl6ZKgiOcx/wrW0cwTvm34cq5pRVGunz+qu90se2PqAjOjiIRoDvrcCR7qlN0iTvBedZRTlOtbOxAiXOb/nwFrsmf8wFiebpKkjbNkNvTiLGRiea53xusmuNwANOZtfYMT03Kwf1bgRFrkM6TqgEVZq1Vl7wjFhGu3CFrk5popRZ0X8zhJqn5IPLt6g/0ImUPee8frB6VtMYYkmQ7ZCWTwKEPGDIgQAAACMoBtyPY40yogNVj5bF/LbEe5QGKZjwyfMj58AY5ocK00CEsC3Nm1wSKR6xi8NSbjhPZRw0/zChVK9K8ceAO4ijNFpOFuOpTO6aEq0o7spO/E0JTwTStxF0jdD9NCydSTLZi4DdtHHkcph4Sao8AwV4qd50wavb0/hxCXkVWTvErgnIWCgjrfgzQBDfa99z0alUbwyBBd8odwfJU7bERsH/SfhNempxiwEU1uq6TPQ2NxgN3fgXo5i9dHrSaI2ZQd7R9hyJVeMlBaz6uP4gS1XYlt5LkT+TFGT/vidKlcMHQx945x1Iivq728eKgJ4aBI5Ja1nxj7QC7d98xukukQl'
+
+# The initial root of an empty merkle tree
 let initialRoot = toBytes(parseBigIntValue("11469701942666298368112882412133877458305516134926649826543144744382391691533"))
 
 func getRootKey(index: Int) = "R:" + toString(index)
 func getNullifierKey(nullifier: ByteVector) = "N:" + toBase58String(nullifier)
 func getDepositKey(address: ByteVector) = "D:" + toBase58String(address)
 let poolIndexKey = "PoolIndex"
+let allMessagesHashKey = "AllMessagesHash"
 
 func takeExt(v: ByteVector, from: Int, to: Int) = {
     drop(take(v, to), from)
@@ -107,7 +114,11 @@ func transact(tx: ByteVector) = {
 
     let fee = toInt(takeExt(memo, 0, 8))
 
+    let allMessagesHash = valueOrElse(getBinary(allMessagesHashKey), toBytes(toBigInt(0)))
     let memoHash = keccak256(memo)
+    let hashes = allMessagesHash + memoHash
+    let newAllMessagesHash = keccak256(hashes)
+
     strict rootBefore = valueOrElse(getBinary(getRootKey(txIndex)), initialRoot)
     let poolIndex = valueOrElse(getInteger(poolIndexKey), 0)
     let poolRoot = valueOrElse(getBinary(getRootKey(poolIndex)), initialRoot)
@@ -119,13 +130,14 @@ func transact(tx: ByteVector) = {
     let transferInputs = memoHash + nullifier + outCommit + delta + memoHash
     let treeInputs = poolRoot + rootAfter + outCommit
 
-    let dataRes = [
+    let dataOps = [
         BinaryEntry(getRootKey(txIndex), rootAfter),
         BinaryEntry(getNullifierKey(nullifier), keccak256(outCommit + delta)),
-        IntegerEntry(poolIndexKey, poolIndex + 128)
+        IntegerEntry(poolIndexKey, poolIndex + 128),
+        BinaryEntry(allMessagesHashKey, newAllMessagesHash)
     ]
 
-    let res = match txType {
+    let txOps = match txType {
         # deposit
         case 0 => {
             let depositPkValue = value(depositPk)
@@ -158,7 +170,7 @@ func transact(tx: ByteVector) = {
         case _ => throw("Unknown tx type")
     }
 
-    let feeRes = if (fee > 0) then {
+    let feeOps = if (fee > 0) then {
         let totalFee = fee * denominator
         [ScriptTransfer(operatorAddress, fee, unit)]
     }
@@ -174,7 +186,7 @@ func transact(tx: ByteVector) = {
     else if (nullifierExists) then
         throw("Double spend")
     else
-        res ++ dataRes ++ feeRes
+        txOps ++ dataOps ++ feeOps
 
 }
 
